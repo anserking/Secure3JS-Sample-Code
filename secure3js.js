@@ -1,2 +1,452 @@
-import te,{useEffect as k,useRef as v,useState as F}from"react";import*as M from"three";import{OrbitControls as ne}from"three/examples/jsm/controls/OrbitControls.js";import{RoomEnvironment as oe}from"three/examples/jsm/environments/RoomEnvironment.js";import{GLTFLoader as W}from"three/examples/jsm/loaders/GLTFLoader.js";import{DRACOLoader as K}from"three/examples/jsm/loaders/DRACOLoader.js";var C=new Uint8Array([83,51,74,83]),I="S3FMT001";async function q(r){let e;if(r instanceof ArrayBuffer)e=new Uint8Array(r);else{let o=r.trim();if(o.length>0&&o.length%2===0&&/^[0-9a-fA-F]+$/.test(o)){e=new Uint8Array(o.length/2);for(let u=0;u<e.length;u++)e[u]=parseInt(o.slice(u*2,u*2+2),16)}else e=new TextEncoder().encode(o)}let t=new Uint8Array(new ArrayBuffer(e.byteLength));return t.set(e instanceof Uint8Array?e:new Uint8Array(e)),window.crypto.subtle.digest("SHA-256",t)}async function Q(r){let e=new DecompressionStream("gzip"),t=e.writable.getWriter(),o=e.readable.getReader();t.write(new Uint8Array(r.buffer.slice(0,r.byteLength))),t.close();let n=[];for(;;){let{done:l,value:c}=await o.read();if(l)break;n.push(c)}let u=0;for(let l of n)u+=l.byteLength;let a=new Uint8Array(new ArrayBuffer(u)),f=0;for(let l of n)a.set(l,f),f+=l.byteLength;return a}function S(r,e){return(r[e]|r[e+1]<<8|r[e+2]<<16|r[e+3]<<24)>>>0}function J(r,e){return S(r,e)+S(r,e+4)*4294967296}async function X(r){let e=new Uint8Array(r),t=String.fromCharCode(e[0],e[1],e[2],e[3],e[4],e[5],e[6],e[7]);if(t!==I)throw new Error(`[Secure3Js] Decrypted payload is not a valid S3FMT001 container (expected "${I}", got "${t}"). Verify your decryption key is correct.`);let o=S(e,12),n=[],u={},a=16;for(let l=0;l<o;l++){let c="";for(let i=0;i<64;i++){let p=e[a+i];if(p===0)break;c+=String.fromCharCode(p)}a+=64;let g=J(e,a);a+=8;let b=J(e,a);a+=8;let T=e[a];a+=1;let d=new Uint8Array(r.slice(g,g+b));T===1&&(d=await Q(d));let s=0,A=S(d,s);if(s+=4,A>0){let i=new TextDecoder().decode(d.slice(s,s+A));s+=A;try{n.push(JSON.parse(i))}catch{throw new Error(`[Secure3Js] JSON parse error in S3FMT001 component "${c}".`)}}let h=S(d,s);s+=4;for(let i=0;i<h;i++){let p=S(d,s);s+=4;let R=new TextDecoder().decode(d.slice(s,s+p));s+=p;let E=S(d,s);s+=4,u[R]=d.slice(s,s+E),s+=E}}let f={};for(let l of n)Object.assign(f,l);return Y(f,u)}function Y(r,e){let t=JSON.parse(JSON.stringify(r)),o=new Set;if(Array.isArray(t.images)){for(let i of t.images)if(typeof i.uri=="string"&&e[i.uri]){o.add(i.uri);let p=e[i.uri],R=i.uri.split(".").pop()?.toLowerCase()??"png",E=R==="jpg"||R==="jpeg"?"image/jpeg":R==="webp"?"image/webp":"image/png",y="",w=8192;for(let x=0;x<p.length;x+=w)y+=String.fromCharCode(...p.subarray(x,x+w));i.uri=`data:${E};base64,${btoa(y)}`}}let n=Array.isArray(t.buffers)?t.buffers:[],u=new Array(n.length).fill(0),a=[],f=0;for(let i=0;i<n.length;i++){u[i]=f;let p=n[i].uri??"";if(o.has(p))continue;let R=p&&e[p]?e[p]:!p&&e["buffer.bin"]?e["buffer.bin"]:void 0;if(R){a.push(R),f+=R.byteLength;let E=(4-R.byteLength%4)%4;E>0&&(a.push(new Uint8Array(E)),f+=E)}}if(Array.isArray(t.bufferViews))for(let i of t.bufferViews){let p=i.buffer??0;i.byteOffset=(i.byteOffset??0)+(u[p]??0),i.buffer=0}f>0?t.buffers=[{byteLength:f}]:delete t.buffers;let l=new Uint8Array(f),c=0;for(let i of a)l.set(i,c),c+=i.byteLength;let g=new TextEncoder().encode(JSON.stringify(t)),b=(4-g.byteLength%4)%4,T=g.byteLength+b,d=f>0,s=20+T+(d?8+f:0),A=new Uint8Array(s),h=new DataView(A.buffer);if(h.setUint32(0,1179937895,!0),h.setUint32(4,2,!0),h.setUint32(8,s,!0),h.setUint32(12,T,!0),h.setUint32(16,1313821514,!0),A.set(g,20),A.fill(32,20+g.byteLength,20+T),d){let i=20+T;h.setUint32(i,f,!0),h.setUint32(i+4,5130562,!0),A.set(l,i+8)}return A.buffer}async function H(r,e){let t=await q(e??"");if(!t||t.byteLength===0)throw new Error("[Secure3Js] Invalid or missing decryption key.");let o=await window.crypto.subtle.importKey("raw",t,{name:"AES-GCM"},!1,["decrypt"]),n=new Uint8Array(r),u=n.length>=16&&n[0]===C[0]&&n[1]===C[1]&&n[2]===C[2]&&n[3]===C[3],a=u?r.slice(4,16):r.slice(0,12),f=u?r.slice(16):r.slice(12),l;try{l=await window.crypto.subtle.decrypt({name:"AES-GCM",iv:new Uint8Array(a)},o,f)}catch{throw new Error("[Secure3Js] Decryption failed \u2014 wrong key or corrupted file. Ensure the passphrase exactly matches the one used during encryption.")}let c=await X(l);try{new Uint8Array(l).fill(0)}catch{}return new Promise((g,b)=>{let T=new W,d=new K;d.setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.7/"),T.setDRACOLoader(d),T.parse(c,"",s=>{try{new Uint8Array(c).fill(0)}catch{}g(s.scene)},s=>{try{new Uint8Array(c).fill(0)}catch{}b(new Error(`[Secure3Js] GLTFLoader failed to parse the decrypted model: ${s instanceof Error?s.message:String(s)}`))})})}function O(r={}){let{debuggerIntervalMs:e=100,detectTimingAnomaly:t=!0,timingThresholdMs:o=150,neuterConsole:n=!0,onDebugDetected:u}=r,a=!1,f=[];if(n&&typeof window<"u")try{let c=()=>{};["log","dir","table","info","debug"].forEach(b=>{window.console&&typeof window.console[b]=="function"&&(window.console[b]=c)})}catch{}let l=()=>{if(!a)try{(function(){return Function("debugger")()})()}catch{}};if(typeof window<"u"){let c=setInterval(l,e);f.push(c)}if(t&&typeof performance<"u"){let c=performance.now(),b=setInterval(()=>{if(a)return;if(performance.now()-c>o+e*2&&u)try{u()}catch{}c=performance.now()},e);f.push(b)}return()=>{a=!0,f.forEach(c=>clearInterval(c))}}function Z(r){if(!r)return;[r.Scene,r.Mesh,r.Group,r.BufferGeometry,r.Material].forEach(t=>{if(t&&t.prototype&&typeof Object.freeze=="function")try{Object.freeze(t.prototype)}catch{}})}function ee(r,e=60){let t=Date.now(),o={modelId:r,iat:t,exp:t+e*1e3,nonce:Math.random().toString(36).substring(2,15)+Math.random().toString(36).substring(2,15)},n=JSON.stringify(o);return typeof btoa=="function"?btoa(unescape(encodeURIComponent(n))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""):typeof Buffer<"u"?Buffer.from(n,"utf8").toString("base64url"):""}function P(r){try{let e=r.replace(/-/g,"+").replace(/_/g,"/");for(;e.length%4!==0;)e+="=";let t=decodeURIComponent(escape(atob(e))),o=JSON.parse(t);return typeof o.exp!="number"||typeof o.iat!="number"?null:o}catch{return null}}function G(r,e=0){let t=typeof r=="string"?P(r):r;return t?Date.now()>t.exp+e:!0}function N(r){let e=typeof r=="string"?P(r):r;return e?Math.max(0,e.exp-Date.now()):0}function re(r){let e=N(r);if(e<=0)return"Expired";let t=Math.ceil(e/1e3),o=Math.floor(t/60),n=t%60;return`${o}:${n<10?"0":""}${n}`}import{jsx as $,jsxs as ce}from"react/jsx-runtime";var ie={};function se(r){let e={},t=r.getObjectByName("Cube");return t?(t.traverse(o=>{if(!o.isMesh)return;let n=o;(Array.isArray(n.material)?n.material:[n.material]).forEach(a=>{a?.name&&(e[a.name]=a)}),n.visible=!1}),t.visible=!1,e):(console.warn("[Secure3Js] No 'Cube' node found in scene \u2014 material library empty."),e)}function ae(r,e,t){if(!e||!t)return;let o=ie[e]??e,n=t[o];n&&(r.material=n.clone(),r.material.needsUpdate=!0)}function V(r,e,t,o={}){!r||!e||(r.traverse(n=>{n.isMesh&&n.parent?.name!=="Cube"&&n.name!=="Cube"&&(n.visible=!1)}),e?.meshes?.forEach(n=>{let u=t?.[n.id];if(n.type==="static"||n.type==="switch"){let f=u?.option?.node_name??n.mesh_options?.find(c=>c.is_default)?.node_name??n.mesh_options?.[0]?.node_name??n.nodeName;if(!f)return;let l=r.getObjectByName(f);if(!l)return;l.traverse(c=>{if(!c.isMesh)return;let g=c;g.visible=!0;let b=u?.material;b?.name&&ae(g,b.name,o)})}}))}var z=te.memo(function({model:e,rawKey:t,token:o,onTokenExpired:n,antiDebug:u=!1,variant:a,meshSelections:f}){let l=v(null),c=v(null),g=v(null),b=v(null),T=v(null),d=v(null),s=v({}),[A,h]=F(!1),[i,p]=F(!0),[R,E]=F("");return k(()=>{if(!u)return;let y=O({debuggerIntervalMs:100,detectTimingAnomaly:!0,neuterConsole:!0,onDebugDetected:()=>{h(!0),E("Inspection detected \u2014 secure session paused")}});return()=>{y()}},[u]),k(()=>{let y=l.current;if(!y)return;let w=new M.Scene;w.background=new M.Color(16117992),c.current=w;let x=new M.PerspectiveCamera(45,y.clientWidth/y.clientHeight,.1,1e3);x.position.set(-1.2,1.2,2.5),b.current=x;let m=new M.WebGLRenderer({antialias:!0,preserveDrawingBuffer:!1,powerPreference:"high-performance"});m.setPixelRatio(window.devicePixelRatio),m.setSize(y.clientWidth,y.clientHeight),m.toneMapping=M.ACESFilmicToneMapping,m.shadowMap.enabled=!0,m.setClearColor(16117992,1),g.current=m,y.appendChild(m.domElement);let U=new M.PMREMGenerator(m);w.environment=U.fromScene(new oe,.04).texture,U.dispose();let L=new ne(x,m.domElement);L.enableDamping=!0,L.target.set(0,.5,0),T.current=L;let _=()=>{L.update(),m.render(w,x)};m.setAnimationLoop(_);let j=new ResizeObserver(()=>{if(!y||!g.current||!b.current)return;let B=y.clientWidth,D=y.clientHeight;B===0||D===0||(b.current.aspect=B/D,b.current.updateProjectionMatrix(),g.current.setSize(B,D))});return j.observe(y),()=>{j.disconnect(),m.setAnimationLoop(null),m.dispose(),y.contains(m.domElement)&&y.removeChild(m.domElement)}},[]),k(()=>{if(!e||!c.current){h(!0),p(!1);return}if(o&&G(o)){h(!0),p(!1),E("Access token has expired"),n&&n();return}let y=!1;return h(!1),p(!0),E(""),(async()=>{try{let w=await fetch(e);if(!w.ok)throw new Error(`Failed to fetch model (${w.status} ${w.statusText})`);let x=await w.arrayBuffer();if(y)return;let m=await H(x,t??"");if(y)return;let U=c.current;if(!U)return;d.current&&U.remove(d.current),s.current=se(m),d.current=m,U.add(m),V(d.current,a,f,s.current),p(!1)}catch(w){console.error("[Secure3Js] Load error:",w),y||(h(!0),p(!1),E(w instanceof Error?w.message:"Decryption failed"))}})(),()=>{y=!0}},[e,t,o,n]),k(()=>{d.current&&V(d.current,a,f,s.current)},[a,f]),ce("div",{style:{position:"relative",width:"100%",height:"100%"},children:[(A||i)&&$("div",{style:{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",backgroundColor:"#F5F0E8",color:"#8C8277",fontFamily:"'Montserrat', sans-serif",fontSize:"12px",letterSpacing:"0.1em",textTransform:"uppercase",textAlign:"center",padding:"20px",zIndex:10},children:i?"Decrypting & Loading 3D Model...":R||"3d model is currently being modeled for this piece"}),$("div",{ref:l,style:{width:"100%",height:"100%",display:"block",visibility:A||i?"hidden":"visible"}})]})});export{z as Secure3Viewer,z as ThreeViewer,ee as createTimedToken,H as decryptAndUnpack,O as enableAntiDebugger,re as formatTokenTimeRemaining,N as getTokenRemainingMs,G as isTokenExpired,P as parseTimedToken,Z as sealViewerEnvironment};
-//# sourceMappingURL=index.mjs.map
+/**
+ * Secure3JS — Client-Side In-Memory AES-256 Decryption Engine for Three.js
+ * Compatible with vanilla JavaScript, modern ES modules, and React.
+ */
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+
+// ── Constants ────────────────────────────────────────────────────────────────
+const S3JS_MAGIC = new Uint8Array([0x53, 0x33, 0x4a, 0x53]); // 'S3JS'
+const S3FMT_MAGIC = 'S3FMT001';
+
+// ── Key Derivation ───────────────────────────────────────────────────────────
+async function resolveKeyBuffer(key) {
+  let rawBytes;
+  if (key instanceof ArrayBuffer) {
+    rawBytes = new Uint8Array(key);
+  } else {
+    const s = (key || '').toString().trim();
+    const isHex = s.length > 0 && s.length % 2 === 0 && /^[0-9a-fA-F]+$/.test(s);
+    if (isHex) {
+      rawBytes = new Uint8Array(s.length / 2);
+      for (let i = 0; i < rawBytes.length; i++) {
+        rawBytes[i] = parseInt(s.slice(i * 2, i * 2 + 2), 16);
+      }
+    } else {
+      rawBytes = new TextEncoder().encode(s);
+    }
+  }
+
+  const safeBytes = new Uint8Array(new ArrayBuffer(rawBytes.byteLength));
+  safeBytes.set(rawBytes instanceof Uint8Array ? rawBytes : new Uint8Array(rawBytes));
+  return window.crypto.subtle.digest('SHA-256', safeBytes);
+}
+
+// ── GZIP Decompression ───────────────────────────────────────────────────────
+async function gunzip(compressed) {
+  const ds = new DecompressionStream('gzip');
+  const writer = ds.writable.getWriter();
+  const reader = ds.readable.getReader();
+
+  writer.write(new Uint8Array(compressed.buffer.slice(0, compressed.byteLength)));
+  writer.close();
+
+  const chunks = [];
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+  }
+
+  let total = 0;
+  for (const c of chunks) total += c.byteLength;
+  const out = new Uint8Array(new ArrayBuffer(total));
+  let pos = 0;
+  for (const c of chunks) {
+    out.set(c, pos);
+    pos += c.byteLength;
+  }
+  return out;
+}
+
+// ── Binary Helpers ───────────────────────────────────────────────────────────
+function u32(u8, off) {
+  return (u8[off] | (u8[off + 1] << 8) | (u8[off + 2] << 16) | (u8[off + 3] << 24)) >>> 0;
+}
+
+function u64(u8, off) {
+  return u32(u8, off) + u32(u8, off + 4) * 0x100000000;
+}
+
+// ── S3FMT001 Container Unpacker ──────────────────────────────────────────────
+async function unpackS3FMT001(buffer) {
+  const u8 = new Uint8Array(buffer);
+
+  const magic = String.fromCharCode(u8[0], u8[1], u8[2], u8[3], u8[4], u8[5], u8[6], u8[7]);
+  if (magic !== S3FMT_MAGIC) {
+    throw new Error(
+      `[Secure3Js] Decrypted payload is not a valid S3FMT001 container (expected "${S3FMT_MAGIC}", got "${magic}"). Verify your decryption key is correct.`
+    );
+  }
+
+  const numEntries = u32(u8, 12);
+  const gltfParts = [];
+  const resources = {};
+
+  let tocOff = 16;
+  for (let i = 0; i < numEntries; i++) {
+    let name = '';
+    for (let j = 0; j < 64; j++) {
+      const c = u8[tocOff + j];
+      if (c === 0) break;
+      name += String.fromCharCode(c);
+    }
+    tocOff += 64;
+
+    const offset = u64(u8, tocOff);
+    tocOff += 8;
+    const length = u64(u8, tocOff);
+    tocOff += 8;
+    const flags = u8[tocOff];
+    tocOff += 1;
+
+    let payload = new Uint8Array(buffer.slice(offset, offset + length));
+    if (flags === 0x01) {
+      payload = await gunzip(payload);
+    }
+
+    let pOff = 0;
+    const jsonLen = u32(payload, pOff);
+    pOff += 4;
+    if (jsonLen > 0) {
+      const jsonStr = new TextDecoder().decode(payload.slice(pOff, pOff + jsonLen));
+      pOff += jsonLen;
+      try {
+        gltfParts.push(JSON.parse(jsonStr));
+      } catch {
+        throw new Error(`[Secure3Js] JSON parse error in S3FMT001 component "${name}".`);
+      }
+    }
+
+    const numRes = u32(payload, pOff);
+    pOff += 4;
+    for (let r = 0; r < numRes; r++) {
+      const nameLen = u32(payload, pOff);
+      pOff += 4;
+      const resName = new TextDecoder().decode(payload.slice(pOff, pOff + nameLen));
+      pOff += nameLen;
+      const resLen = u32(payload, pOff);
+      pOff += 4;
+      resources[resName] = payload.slice(pOff, pOff + resLen);
+      pOff += resLen;
+    }
+  }
+
+  const gltfJson = {};
+  for (const part of gltfParts) Object.assign(gltfJson, part);
+
+  return assembleGLB(gltfJson, resources);
+}
+
+// ── GLB Assembler ────────────────────────────────────────────────────────────
+function assembleGLB(rawJson, resources) {
+  const json = JSON.parse(JSON.stringify(rawJson));
+
+  const usedAsImage = new Set();
+  if (Array.isArray(json.images)) {
+    for (const img of json.images) {
+      if (typeof img.uri === 'string' && resources[img.uri]) {
+        usedAsImage.add(img.uri);
+        const data = resources[img.uri];
+        const ext = img.uri.split('.').pop()?.toLowerCase() ?? 'png';
+        const mime =
+          ext === 'jpg' || ext === 'jpeg'
+            ? 'image/jpeg'
+            : ext === 'webp'
+            ? 'image/webp'
+            : 'image/png';
+        let bin = '';
+        const CHUNK = 8192;
+        for (let k = 0; k < data.length; k += CHUNK) {
+          bin += String.fromCharCode(...data.subarray(k, k + CHUNK));
+        }
+        img.uri = `data:${mime};base64,${btoa(bin)}`;
+      }
+    }
+  }
+
+  const bufferDefs = Array.isArray(json.buffers) ? json.buffers : [];
+  const bufferStartOffsets = new Array(bufferDefs.length).fill(0);
+  const mergedChunks = [];
+  let totalBinarySize = 0;
+
+  for (let bi = 0; bi < bufferDefs.length; bi++) {
+    bufferStartOffsets[bi] = totalBinarySize;
+    const uri = bufferDefs[bi].uri ?? '';
+
+    if (usedAsImage.has(uri)) continue;
+
+    const data =
+      uri && resources[uri]
+        ? resources[uri]
+        : !uri && resources['buffer.bin']
+        ? resources['buffer.bin']
+        : undefined;
+
+    if (data) {
+      mergedChunks.push(data);
+      totalBinarySize += data.byteLength;
+      const pad = (4 - (data.byteLength % 4)) % 4;
+      if (pad > 0) {
+        mergedChunks.push(new Uint8Array(pad));
+        totalBinarySize += pad;
+      }
+    }
+  }
+
+  if (Array.isArray(json.bufferViews)) {
+    for (const bv of json.bufferViews) {
+      const origBufIdx = bv.buffer ?? 0;
+      bv.byteOffset = (bv.byteOffset ?? 0) + (bufferStartOffsets[origBufIdx] ?? 0);
+      bv.buffer = 0;
+    }
+  }
+
+  if (totalBinarySize > 0) {
+    json.buffers = [{ byteLength: totalBinarySize }];
+  } else {
+    delete json.buffers;
+  }
+
+  const mergedBinary = new Uint8Array(totalBinarySize);
+  let mOff = 0;
+  for (const chunk of mergedChunks) {
+    mergedBinary.set(chunk, mOff);
+    mOff += chunk.byteLength;
+  }
+
+  const jsonBytes = new TextEncoder().encode(JSON.stringify(json));
+  const jsonPadLen = (4 - (jsonBytes.byteLength % 4)) % 4;
+  const jsonChunkSize = jsonBytes.byteLength + jsonPadLen;
+
+  const hasBin = totalBinarySize > 0;
+  const totalLen = 12 + 8 + jsonChunkSize + (hasBin ? 8 + totalBinarySize : 0);
+
+  const glb = new Uint8Array(totalLen);
+  const dv = new DataView(glb.buffer);
+
+  // GLB 2.0 file header
+  dv.setUint32(0, 0x46546c67, true); // magic = 'glTF'
+  dv.setUint32(4, 2, true); // version = 2
+  dv.setUint32(8, totalLen, true);
+
+  // JSON chunk
+  dv.setUint32(12, jsonChunkSize, true);
+  dv.setUint32(16, 0x4e4f534a, true); // chunkType = 'JSON'
+  glb.set(jsonBytes, 20);
+  glb.fill(0x20, 20 + jsonBytes.byteLength, 20 + jsonChunkSize);
+
+  // BIN chunk
+  if (hasBin) {
+    const binStart = 20 + jsonChunkSize;
+    dv.setUint32(binStart, totalBinarySize, true);
+    dv.setUint32(binStart + 4, 0x004e4942, true); // chunkType = 'BIN\0'
+    glb.set(mergedBinary, binStart + 8);
+  }
+
+  return glb.buffer;
+}
+
+// ── Public Decryption API ────────────────────────────────────────────────────
+export async function decryptAndUnpack(encArrayBuffer, rawKey) {
+  const keyBuffer = await resolveKeyBuffer(rawKey ?? '');
+  if (!keyBuffer || keyBuffer.byteLength === 0) {
+    throw new Error('[Secure3Js] Invalid or missing decryption key.');
+  }
+
+  const cryptoKey = await window.crypto.subtle.importKey(
+    'raw',
+    keyBuffer,
+    { name: 'AES-GCM' },
+    false,
+    ['decrypt']
+  );
+
+  const u8 = new Uint8Array(encArrayBuffer);
+  const hasS3JSMagic =
+    u8.length >= 16 &&
+    u8[0] === S3JS_MAGIC[0] &&
+    u8[1] === S3JS_MAGIC[1] &&
+    u8[2] === S3JS_MAGIC[2] &&
+    u8[3] === S3JS_MAGIC[3];
+
+  const iv = hasS3JSMagic ? encArrayBuffer.slice(4, 16) : encArrayBuffer.slice(0, 12);
+  const ciphertext = hasS3JSMagic ? encArrayBuffer.slice(16) : encArrayBuffer.slice(12);
+
+  let decryptedBuffer;
+  try {
+    decryptedBuffer = await window.crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: new Uint8Array(iv) },
+      cryptoKey,
+      ciphertext
+    );
+  } catch {
+    throw new Error(
+      '[Secure3Js] Decryption failed — wrong key or corrupted file. Ensure the passphrase exactly matches the one used during encryption.'
+    );
+  }
+
+  const glbBuffer = await unpackS3FMT001(decryptedBuffer);
+
+  try {
+    new Uint8Array(decryptedBuffer).fill(0);
+  } catch {}
+
+  return new Promise((resolve, reject) => {
+    const loader = new GLTFLoader();
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+    loader.setDRACOLoader(dracoLoader);
+
+    loader.parse(
+      glbBuffer,
+      '',
+      (gltf) => {
+        try {
+          new Uint8Array(glbBuffer).fill(0);
+        } catch {}
+        resolve(gltf.scene);
+      },
+      (err) => {
+        try {
+          new Uint8Array(glbBuffer).fill(0);
+        } catch {}
+        reject(
+          new Error(
+            `[Secure3Js] GLTFLoader failed to parse the decrypted model: ${
+              err instanceof Error ? err.message : String(err)
+            }`
+          )
+        );
+      }
+    );
+  });
+}
+
+// ── Anti-Debugger & DevTools Traps ───────────────────────────────────────────
+export function enableAntiDebugger(options = {}) {
+  const {
+    debuggerIntervalMs = 100,
+    detectTimingAnomaly = true,
+    timingThresholdMs = 150,
+    neuterConsole = true,
+    onDebugDetected
+  } = options;
+
+  let stopped = false;
+  const timers = [];
+
+  if (neuterConsole && typeof window !== 'undefined') {
+    try {
+      const noop = () => {};
+      ['log', 'dir', 'table', 'info', 'debug'].forEach((method) => {
+        if (window.console && typeof window.console[method] === 'function') {
+          window.console[method] = noop;
+        }
+      });
+    } catch {}
+  }
+
+  const debuggerLoop = () => {
+    if (!stopped) {
+      try {
+        (function () {
+          return Function('debugger')();
+        })();
+      } catch {}
+    }
+  };
+
+  if (typeof window !== 'undefined') {
+    timers.push(setInterval(debuggerLoop, debuggerIntervalMs));
+  }
+
+  if (detectTimingAnomaly && typeof performance !== 'undefined') {
+    let last = performance.now();
+    timers.push(
+      setInterval(() => {
+        if (stopped) return;
+        const now = performance.now();
+        if (now - last > timingThresholdMs + debuggerIntervalMs * 2) {
+          if (onDebugDetected) {
+            try {
+              onDebugDetected();
+            } catch {}
+          }
+        }
+        last = performance.now();
+      }, debuggerIntervalMs)
+    );
+  }
+
+  return () => {
+    stopped = true;
+    timers.forEach((t) => clearInterval(t));
+  };
+}
+
+export function sealViewerEnvironment(threeInstance) {
+  if (!threeInstance) return;
+  const targets = [
+    threeInstance.Scene,
+    threeInstance.Mesh,
+    threeInstance.Group,
+    threeInstance.BufferGeometry,
+    threeInstance.Material
+  ];
+  targets.forEach((cls) => {
+    if (cls && cls.prototype && typeof Object.freeze === 'function') {
+      try {
+        Object.freeze(cls.prototype);
+      } catch {}
+    }
+  });
+}
+
+// ── Ephemeral Token Utilities ────────────────────────────────────────────────
+export function createTimedToken(modelId, ttlSeconds = 60) {
+  const now = Date.now();
+  const payload = {
+    modelId,
+    iat: now,
+    exp: now + ttlSeconds * 1000,
+    nonce: Math.random().toString(36).substring(2, 15)
+  };
+  const json = JSON.stringify(payload);
+  return typeof btoa === 'function'
+    ? btoa(unescape(encodeURIComponent(json))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+    : '';
+}
+
+export function parseTimedToken(token) {
+  try {
+    let base64 = token.replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4 !== 0) base64 += '=';
+    const json = decodeURIComponent(escape(atob(base64)));
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+export function isTokenExpired(token, clockSkewSeconds = 0) {
+  const parsed = typeof token === 'string' ? parseTimedToken(token) : token;
+  if (!parsed || typeof parsed.exp !== 'number') return true;
+  return Date.now() > parsed.exp + clockSkewSeconds * 1000;
+}
+
+export function getTokenRemainingMs(token) {
+  const parsed = typeof token === 'string' ? parseTimedToken(token) : token;
+  if (!parsed || typeof parsed.exp !== 'number') return 0;
+  return Math.max(0, parsed.exp - Date.now());
+}
+
+export function formatTokenTimeRemaining(token) {
+  const ms = getTokenRemainingMs(token);
+  if (ms <= 0) return 'Expired';
+  const totalSeconds = Math.ceil(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+}
