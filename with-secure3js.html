@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D Model Viewer — With Secure3JS (AES-256 Encrypted .enc)</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      overflow: hidden;
+      background: #18181b;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+  </style>
+
+  <!-- Import map for Three.js and Secure3JS modules -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+        "three/examples/jsm/loaders/GLTFLoader.js": "https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js",
+        "three/examples/jsm/loaders/DRACOLoader.js": "https://unpkg.com/three@0.160.0/examples/jsm/loaders/DRACOLoader.js",
+        "secure3js": "./secure3js.js"
+      }
+    }
+  </script>
+</head>
+
+<body>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { decryptAndUnpack } from 'secure3js';
+
+    // ── 1. Initialize Scene, Camera, Renderer ────────────────────────────────
+    function initViewer() {
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x18181b);
+
+      const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 10000);
+      camera.position.set(0, 1.5, 3);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: false });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.2;
+      document.body.appendChild(renderer.domElement);
+
+      return { scene, camera, renderer };
+    }
+
+    // ── 2. Lights Setup ──────────────────────────────────────────────────────
+    function setupLights(scene) {
+      scene.add(new THREE.AmbientLight(0xffffff, 1.5));
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 2.0));
+
+      const dirLight1 = new THREE.DirectionalLight(0xffffff, 2.0);
+      dirLight1.position.set(5, 10, 7);
+      scene.add(dirLight1);
+
+      const dirLight2 = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight2.position.set(-5, 5, -5);
+      scene.add(dirLight2);
+    }
+
+    // ── 3. Orbit Controls Setup ──────────────────────────────────────────────
+    function setupControls(camera, renderer) {
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      return controls;
+    }
+
+    // ── 4. Render Loop & Window Resize ───────────────────────────────────────
+    function startRenderLoop(renderer, scene, camera, controls) {
+      renderer.setAnimationLoop(() => {
+        controls.update();
+        renderer.render(scene, camera);
+      });
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+    }
+
+    // ── 5. Auto-Center & Frame Model ─────────────────────────────────────────
+    function centerAndDisplayModel(model, scene, camera, controls) {
+      model.traverse((child) => {
+        if (child.isMesh) child.visible = true;
+      });
+
+      const box = new THREE.Box3().setFromObject(model);
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+
+      model.position.x -= center.x;
+      model.position.y -= center.y;
+      model.position.z -= center.z;
+
+      scene.add(model);
+
+      const maxDim = Math.max(size.x, size.y, size.z) || 2;
+      camera.near = maxDim / 100;
+      camera.far = maxDim * 100;
+      camera.updateProjectionMatrix();
+
+      camera.position.set(0, maxDim * 0.5, maxDim * 2.0);
+      controls.target.set(0, 0, 0);
+      controls.update();
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // ── 6. MODEL LOADER (★ The ONLY function different between examples) ─────
+    // ══════════════════════════════════════════════════════════════════════════
+    async function load3DModel(scene, camera, controls) {
+      const MODEL_URL = 'https://pub-a5b8a0a666ea47eaa93df657f30bbbb0.r2.dev/Cat.enc';
+      const SECRET_KEY = 'z*q0Hdciv7eARmWg';
+
+      try {
+        const response = await fetch(MODEL_URL);
+        if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+
+        const encBytes = await response.arrayBuffer();
+
+        // Decrypt in RAM & unpack into Three.js scene graph using Secure3JS
+        const model = await decryptAndUnpack(encBytes, SECRET_KEY);
+
+        centerAndDisplayModel(model, scene, camera, controls);
+      } catch (error) {
+        console.error('Failed to load encrypted Secure3JS model:', error);
+      }
+    }
+
+    // ── 7. Application Entry Point ───────────────────────────────────────────
+    (function main() {
+      const { scene, camera, renderer } = initViewer();
+      setupLights(scene);
+      const controls = setupControls(camera, renderer);
+      startRenderLoop(renderer, scene, camera, controls);
+      load3DModel(scene, camera, controls);
+    })();
+  </script>
+</body>
+
+</html>

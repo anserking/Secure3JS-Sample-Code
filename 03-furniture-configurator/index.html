@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Secure3JS — 3D Furniture & Product Configurator Example</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      overflow: hidden;
+      background: #121214;
+      color: #e4e4e7;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* Minimalist Configurator UI */
+    .config-panel {
+      position: absolute;
+      top: 24px;
+      left: 24px;
+      z-index: 10;
+      background: rgba(24, 24, 27, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 20px;
+      width: 320px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .brand-tag {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #38bdf8;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .brand-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #38bdf8;
+    }
+
+    .config-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #fafafa;
+      margin-bottom: 4px;
+    }
+
+    .config-desc {
+      font-size: 12px;
+      color: #a1a1aa;
+      margin-bottom: 16px;
+      line-height: 1.4;
+    }
+
+    .divider {
+      height: 1px;
+      background: rgba(255, 255, 255, 0.08);
+      margin-bottom: 16px;
+    }
+
+    .section-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #d4d4d8;
+      margin-bottom: 8px;
+    }
+
+    .color-swatches {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .swatch {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .swatch.active {
+      border-color: #38bdf8;
+      transform: scale(1.1);
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+    }
+
+    .option-pills {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .pill {
+      flex: 1;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      background: #27272a;
+      color: #d4d4d8;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s ease;
+    }
+
+    .pill:hover {
+      background: #3f3f46;
+    }
+
+    .pill.active {
+      background: #38bdf8;
+      color: #09090b;
+      font-weight: 700;
+      border-color: #38bdf8;
+    }
+
+    .security-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: #4ade80;
+      background: rgba(74, 222, 128, 0.1);
+      border: 1px solid rgba(74, 222, 128, 0.2);
+      border-radius: 6px;
+      padding: 6px 10px;
+    }
+  </style>
+
+  <!-- Import map -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+        "three/examples/jsm/loaders/GLTFLoader.js": "https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js",
+        "three/examples/jsm/loaders/DRACOLoader.js": "https://unpkg.com/three@0.160.0/examples/jsm/loaders/DRACOLoader.js",
+        "secure3js": "./secure3js.js"
+      }
+    }
+  </script>
+</head>
+
+<body>
+  <!-- Interactive Configurator Overlay -->
+  <div class="config-panel">
+    <div class="brand-tag">
+      <span class="brand-dot"></span>
+      Secure3JS Configurator
+    </div>
+    <h2 class="config-title">Configurable 3D Model</h2>
+    <p class="config-desc">
+      Demonstrates runtime material & finish switching on an encrypted 3D asset with zero model theft risk.
+    </p>
+    <div class="divider"></div>
+
+    <div class="section-label">Finish / Material Tint</div>
+    <div class="color-swatches">
+      <button class="swatch active" style="background: #e2e8f0;" data-color="#e2e8f0" title="Natural White"></button>
+      <button class="swatch" style="background: #94a3b8;" data-color="#94a3b8" title="Slate Gray"></button>
+      <button class="swatch" style="background: #b45309;" data-color="#b45309" title="Warm Walnut"></button>
+      <button class="swatch" style="background: #1e293b;" data-color="#1e293b" title="Midnight Black"></button>
+    </div>
+
+    <div class="section-label">Surface Finish</div>
+    <div class="option-pills">
+      <button class="pill active" data-roughness="0.5" data-metalness="0.1">Matte</button>
+      <button class="pill" data-roughness="0.1" data-metalness="0.3">Glossy</button>
+      <button class="pill" data-roughness="0.3" data-metalness="0.8">Metallic</button>
+    </div>
+
+    <div class="security-badge">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+      Encrypted AES-256 in Memory
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { decryptAndUnpack } from 'secure3js';
+
+    let activeModel = null;
+    const materialsList = [];
+
+    // ── 1. Initialize Scene, Camera, Renderer ────────────────────────────────
+    function initViewer() {
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x121214);
+
+      const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 10000);
+      camera.position.set(0, 1.5, 3);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: false });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.2;
+      document.body.appendChild(renderer.domElement);
+
+      return { scene, camera, renderer };
+    }
+
+    // ── 2. Lights Setup ──────────────────────────────────────────────────────
+    function setupLights(scene) {
+      scene.add(new THREE.AmbientLight(0xffffff, 1.5));
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 2.0));
+
+      const dirLight1 = new THREE.DirectionalLight(0xffffff, 2.0);
+      dirLight1.position.set(5, 10, 7);
+      scene.add(dirLight1);
+
+      const dirLight2 = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight2.position.set(-5, 5, -5);
+      scene.add(dirLight2);
+    }
+
+    // ── 3. Orbit Controls Setup ──────────────────────────────────────────────
+    function setupControls(camera, renderer) {
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      return controls;
+    }
+
+    // ── 4. Render Loop & Window Resize ───────────────────────────────────────
+    function startRenderLoop(renderer, scene, camera, controls) {
+      renderer.setAnimationLoop(() => {
+        controls.update();
+        renderer.render(scene, camera);
+      });
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+    }
+
+    // ── 5. Auto-Center & Collect Materials ───────────────────────────────────
+    function centerAndDisplayModel(model, scene, camera, controls) {
+      activeModel = model;
+      materialsList.length = 0;
+
+      model.traverse((child) => {
+        if (child.isMesh) {
+          child.visible = true;
+          if (child.material) {
+            if (Array.isArray(child.material)) {
+              child.material.forEach((mat) => materialsList.push(mat));
+            } else {
+              materialsList.push(child.material);
+            }
+          }
+        }
+      });
+
+      const box = new THREE.Box3().setFromObject(model);
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+
+      model.position.x -= center.x;
+      model.position.y -= center.y;
+      model.position.z -= center.z;
+
+      scene.add(model);
+
+      const maxDim = Math.max(size.x, size.y, size.z) || 2;
+      camera.near = maxDim / 100;
+      camera.far = maxDim * 100;
+      camera.updateProjectionMatrix();
+
+      camera.position.set(0, maxDim * 0.5, maxDim * 2.0);
+      controls.target.set(0, 0, 0);
+      controls.update();
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // ── 6. SECURE MODEL LOADER ───────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════════
+    async function load3DModel(scene, camera, controls) {
+      const MODEL_URL = 'https://pub-a5b8a0a666ea47eaa93df657f30bbbb0.r2.dev/Cat.enc';
+      const SECRET_KEY = 'z*q0Hdciv7eARmWg';
+
+      try {
+        const response = await fetch(MODEL_URL);
+        if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+
+        const encBytes = await response.arrayBuffer();
+
+        // Decrypt in RAM & unpack into Three.js scene graph using Secure3JS
+        const model = await decryptAndUnpack(encBytes, SECRET_KEY);
+
+        centerAndDisplayModel(model, scene, camera, controls);
+      } catch (error) {
+        console.error('Failed to load encrypted Secure3JS model:', error);
+      }
+    }
+
+    // ── 7. Configurator Material & Color Customization ────────────────────────
+    function setupConfiguratorControls() {
+      // Color swatches
+      document.querySelectorAll('.swatch').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          document.querySelectorAll('.swatch').forEach((s) => s.classList.remove('active'));
+          btn.classList.add('active');
+          const colorHex = btn.getAttribute('data-color');
+          if (colorHex) {
+            materialsList.forEach((mat) => {
+              mat.color = new THREE.Color(colorHex);
+              mat.needsUpdate = true;
+            });
+          }
+        });
+      });
+
+      // Surface finish pills
+      document.querySelectorAll('.pill').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.pill').forEach((p) => p.classList.remove('active'));
+          btn.classList.add('active');
+          const roughness = parseFloat(btn.getAttribute('data-roughness') || '0.5');
+          const metalness = parseFloat(btn.getAttribute('data-metalness') || '0.1');
+
+          materialsList.forEach((mat) => {
+            if ('roughness' in mat) mat.roughness = roughness;
+            if ('metalness' in mat) mat.metalness = metalness;
+            mat.needsUpdate = true;
+          });
+        });
+      });
+    }
+
+    // ── 8. Application Entry Point ───────────────────────────────────────────
+    (function main() {
+      const { scene, camera, renderer } = initViewer();
+      setupLights(scene);
+      const controls = setupControls(camera, renderer);
+      startRenderLoop(renderer, scene, camera, controls);
+      load3DModel(scene, camera, controls);
+      setupConfiguratorControls();
+    })();
+  </script>
+</body>
+
+</html>
